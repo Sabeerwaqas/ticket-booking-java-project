@@ -8,71 +8,50 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class TrainService {
 
     private List<Train> trainList;
-    private ObjectMapper objectMapper = new ObjectMapper();
-    private static final String TRAIN_DB_PATH = "../localDB/trains.json";
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final String TRAIN_DB_PATH = "C:\\Users\\Sabeer\\Documents\\ticket-booking-java-project\\app\\src\\main\\java\\ticket\\booking\\localDB\\trains.json";
 
     public TrainService() throws IOException {
-        File trains = new File(TRAIN_DB_PATH);
-        trainList = objectMapper.readValue(trains, new TypeReference<List<Train>>() {});
+        loadTrains();
+    }
+
+    private void loadTrains() throws IOException {
+        trainList = objectMapper.readValue(new File(TRAIN_DB_PATH), new TypeReference<List<Train>>() {});
+    }
+
+    private void saveTrains() throws IOException {
+        objectMapper.writeValue(new File(TRAIN_DB_PATH), trainList);
     }
 
     public List<Train> searchTrains(String source, String destination) {
-        return trainList.stream().filter(train -> validTrain(train, source, destination)).collect(Collectors.toList());
+        return trainList.stream()
+                .filter(train -> isValidTrain(train, source, destination))
+                .collect(Collectors.toList());
     }
 
-    public void addTrain(Train newTrain) {
-        // Check if a train with the same trainId already exists
+    public void addOrUpdateTrain(Train newTrain) throws IOException {
         Optional<Train> existingTrain = trainList.stream()
-                .filter(train -> train.getTrainId().equalsIgnoreCase(newTrain.getTrainId()))
+                .filter(t -> t.getTrainId().equalsIgnoreCase(newTrain.getTrainId()))
                 .findFirst();
 
         if (existingTrain.isPresent()) {
-            // If a train with the same trainId exists, update it instead of adding a new one
-            updateTrain(newTrain);
+            trainList.set(trainList.indexOf(existingTrain.get()), newTrain);
         } else {
-            // Otherwise, add the new train to the list
             trainList.add(newTrain);
-            saveTrainListToFile();
         }
+
+        saveTrains();
     }
 
-    public void updateTrain(Train updatedTrain) {
-        // Find the index of the train with the same trainId
-        OptionalInt index = IntStream.range(0, trainList.size())
-                .filter(i -> trainList.get(i).getTrainId().equalsIgnoreCase(updatedTrain.getTrainId()))
-                .findFirst();
-
-        if (index.isPresent()) {
-            // If found, replace the existing train with the updated one
-            trainList.set(index.getAsInt(), updatedTrain);
-            saveTrainListToFile();
-        } else {
-            // If not found, treat it as adding a new train
-            addTrain(updatedTrain);
-        }
-    }
-
-    private void saveTrainListToFile() {
-        try {
-            objectMapper.writeValue(new File(TRAIN_DB_PATH), trainList);
-        } catch (IOException e) {
-            e.printStackTrace(); // Handle the exception based on your application's requirements
-        }
-    }
-
-    private boolean validTrain(Train train, String source, String destination) {
-        List<String> stationOrder = train.getStations();
-
-        int sourceIndex = stationOrder.indexOf(source.toLowerCase());
-        int destinationIndex = stationOrder.indexOf(destination.toLowerCase());
-
+    private boolean isValidTrain(Train train, String source, String destination) {
+        List<String> stations = train.getStations();
+        int sourceIndex = stations.indexOf(source.toLowerCase());
+        int destinationIndex = stations.indexOf(destination.toLowerCase());
         return sourceIndex != -1 && destinationIndex != -1 && sourceIndex < destinationIndex;
     }
 }
